@@ -1,0 +1,49 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Submit Python code to CKB
+
+on:
+  push:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Upload Python code
+      id: artifact-upload
+      uses: actions/upload-artifact@v4.3.0
+      if: ${{ env.GITHUB_PAT != '' }}
+      with:
+        path: '.'
+        if-no-files-found: error
+        retention-days: 1
+        overwrite: true
+
+    - name: Dump artifact url
+      if: ${{ env.GITHUB_PAT != '' }}
+      env:
+        ARTIFACT_URL: ${{ steps.artifact-upload.outputs.artifact-url }}
+      run: echo "Artifact URL => $ARTIFACT_URL"
+
+  upload:
+    needs: build
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Submit build artifact to CKB
+      uses: dkershner6/post-api-call-action@v2
+      if: ${{ env.GITHUB_PAT != '' }}
+      with:
+        url: ${{ vars.API_BASE_URL }}/battles/${{ vars.BATTLE_ID }}/submit
+        data: "{\"artifactUrl\": \"${{ needs.build.outputs.artifact-url }}\"}"
+        headers: "{\"Authorization\": \"Bearer ${{ secrets.GITHUB_PAT }}\"}"
